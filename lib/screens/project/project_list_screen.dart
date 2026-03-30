@@ -1,5 +1,5 @@
+import 'dart:io'; // <--- YE ADD KIYA (File class ke liye)
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/supabase/supabase_client.dart';
 import '../../models/project.dart';
 import 'create_project_screen.dart';
@@ -31,13 +31,17 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
           .select()
           .order('created_at', ascending: false);
 
-      projects = response.map<Project>((json) => Project.fromJson(json)).toList();
+      setState(() {
+        projects = response.map<Project>((json) => Project.fromJson(json)).toList();
+      });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e")),
+        );
+      }
     } finally {
-      setState(() => isLoading = false);
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
@@ -46,8 +50,9 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F0F),
       appBar: AppBar(
-        title: const Text("My Projects"),
+        title: const Text("My Projects", style: TextStyle(color: Colors.white)),
         backgroundColor: Colors.black,
+        iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
@@ -61,7 +66,7 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
         ],
       ),
       body: isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: Colors.blue))
           : projects.isEmpty
           ? Center(
         child: Column(
@@ -73,15 +78,16 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
               "No Projects Yet",
               style: TextStyle(fontSize: 20, color: Colors.grey),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 20),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
               onPressed: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const CreateProjectScreen()),
                 ).then((_) => _fetchProjects());
               },
-              child: const Text("Create New Project"),
+              child: const Text("Create New Project", style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -92,33 +98,38 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
         itemBuilder: (context, index) {
           final project = projects[index];
           return Card(
-            color: Colors.grey[900],
+            color: const Color(0xFF1A1A1A),
             margin: const EdgeInsets.only(bottom: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               leading: Container(
-                width: 60,
-                height: 60,
+                width: 50,
+                height: 50,
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.2),
+                  color: Colors.blue.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.video_library, color: Colors.blue, size: 30),
+                child: const Icon(Icons.movie_creation_outlined, color: Colors.blue),
               ),
               title: Text(
                 project.projectName,
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
               ),
               subtitle: Text(
                 "${project.resolution} • ${project.frameRate} fps",
-                style: TextStyle(color: Colors.grey[400]),
+                style: const TextStyle(color: Colors.white54, fontSize: 12),
               ),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 18),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.white24),
               onTap: () {
-                // Video Editor Screen pe jaayega
+                // --- FIXED ERROR HERE ---
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => VideoEditorScreen(project: project),
+                    builder: (_) => VideoEditorScreen(
+                      project: project,
+                      videoFile: File(""), // <--- Khali file bheji taake crash na ho
+                    ),
                   ),
                 );
               },

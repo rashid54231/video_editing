@@ -1,9 +1,9 @@
-import 'dart:io'; // File handle karne ke liye
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart'; // Naya tool
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../core/supabase/supabase_client.dart';
-import 'project_list_screen.dart';
+import '../editor/video_editor_screen.dart'; // Iska path check kar lena sahi hai ya nahi
+import '../../models/project.dart';
 
 class CreateProjectScreen extends StatefulWidget {
   const CreateProjectScreen({super.key});
@@ -16,7 +16,6 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
   final projectNameController = TextEditingController();
   final descriptionController = TextEditingController();
 
-  // --- VIDEO SELECTION VARIABLES ---
   File? _selectedVideoFile;
   final ImagePicker _picker = ImagePicker();
   bool isLoading = false;
@@ -29,10 +28,10 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
       setState(() {
         _selectedVideoFile = File(pickedFile.path);
       });
-      print("Video Path: ${_selectedVideoFile!.path}");
     }
   }
 
+  // --- ASLI KAAM YAHAN HO RAHA HAI: DATA SAVE KARNA ---
   Future<void> _createProject() async {
     if (projectNameController.text.trim().isEmpty || _selectedVideoFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -42,35 +41,83 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
     }
 
     setState(() => isLoading = true);
-    // Baaki Supabase wala logic wahi rahega...
-    // Abhi hum sirf UI aur selection check kar rahe hain.
-    setState(() => isLoading = false);
+
+    try {
+      // 1. Current User ki ID lena
+      final userId = SupabaseService.supabase.auth.currentUser!.id;
+
+      // 2. Supabase mein data insert karna
+      final response = await SupabaseService.supabase
+          .from('projects')
+          .insert({
+        'user_id': userId,
+        'project_name': projectNameController.text.trim(),
+        'description': descriptionController.text.trim(),
+        'aspect_ratio': '16:9', // Default values
+        'frame_rate': 30,
+        'resolution': '1920x1080',
+      })
+          .select()
+          .single();
+
+      if (mounted) {
+        // 3. Project model banana taake Editor ko bhej saken
+        final newProject = Project.fromJson(response);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Project Created Successfully!"), backgroundColor: Colors.green),
+        );
+
+        // 4. Seedha Editor Screen par jana Video ke saath
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => VideoEditorScreen(
+              project: newProject,
+              videoFile: _selectedVideoFile!,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: ${e.toString()}")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F0F),
-      appBar: AppBar(title: const Text("New Project"), backgroundColor: Colors.black),
+      appBar: AppBar(
+        title: const Text("New Project", style: TextStyle(color: Colors.white)),
+        backgroundColor: Colors.black,
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Project Name
             TextField(
               controller: projectNameController,
               style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 labelText: "Project Name",
-                labelStyle: const TextStyle(color: Colors.white70),
-                enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                labelStyle: TextStyle(color: Colors.white70),
+                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.blueAccent)),
               ),
             ),
             const SizedBox(height: 30),
 
-            // --- VIDEO PICKER UI ---
-            const Text("Step 1: Select Video", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text("Step 1: Select Video",
+                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 15),
 
             GestureDetector(
@@ -81,13 +128,16 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.05),
                   borderRadius: BorderRadius.circular(15),
-                  border: Border.all(color: _selectedVideoFile == null ? Colors.blueAccent : Colors.green, width: 2),
+                  border: Border.all(
+                      color: _selectedVideoFile == null ? Colors.blueAccent : Colors.green,
+                      width: 2
+                  ),
                 ),
                 child: _selectedVideoFile == null
                     ? const Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.add_a_photo, color: Colors.blueAccent, size: 50),
+                    Icon(Icons.video_library, color: Colors.blueAccent, size: 50),
                     SizedBox(height: 10),
                     Text("Tap to select video from Gallery", style: TextStyle(color: Colors.white54)),
                   ],
@@ -97,8 +147,14 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
                   children: [
                     const Icon(Icons.check_circle, color: Colors.green, size: 60),
                     const SizedBox(height: 10),
-                    Text("Video Selected!", style: const TextStyle(color: Colors.white)),
-                    Text(_selectedVideoFile!.path.split('/').last, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+                    const Text("Video Selected!", style: TextStyle(color: Colors.white)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: Text(_selectedVideoFile!.path.split('/').last,
+                        style: const TextStyle(color: Colors.white38, fontSize: 10),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -106,14 +162,18 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
 
             const SizedBox(height: 40),
 
-            // Create Button
             SizedBox(
               width: double.infinity,
               height: 55,
               child: ElevatedButton(
-                onPressed: _createProject,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
-                child: const Text("Create Project"),
+                onPressed: isLoading ? null : _createProject,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text("Create Project", style: TextStyle(color: Colors.white, fontSize: 18)),
               ),
             ),
           ],
