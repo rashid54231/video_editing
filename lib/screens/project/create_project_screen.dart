@@ -1,7 +1,8 @@
+import 'dart:io'; // File handle karne ke liye
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart'; // Naya tool
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/supabase/supabase_client.dart';
-import '../../models/project.dart';
 import 'project_list_screen.dart';
 
 class CreateProjectScreen extends StatefulWidget {
@@ -15,151 +16,94 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
   final projectNameController = TextEditingController();
   final descriptionController = TextEditingController();
 
-  String selectedAspectRatio = '16:9';
-  int selectedFrameRate = 30;
-  String selectedResolution = '1920x1080';
-
+  // --- VIDEO SELECTION VARIABLES ---
+  File? _selectedVideoFile;
+  final ImagePicker _picker = ImagePicker();
   bool isLoading = false;
 
-  final List<String> aspectRatios = ['16:9', '9:16', '1:1', '4:5', '21:9'];
-  final List<int> frameRates = [24, 30, 60];
-  final List<String> resolutions = ['1920x1080', '1080x1920', '1280x720', '3840x2160'];
+  // Gallery se video uthane wala function
+  Future<void> _pickVideoFromGallery() async {
+    final XFile? pickedFile = await _picker.pickVideo(source: ImageSource.gallery);
 
-  // Common Input Style for consistent look
-  InputDecoration _inputStyle(String label) {
-    return InputDecoration(
-      labelText: label,
-      labelStyle: const TextStyle(color: Colors.white70),
-      enabledBorder: const OutlineInputBorder(
-        borderSide: BorderSide(color: Colors.white24),
-      ),
-      focusedBorder: const OutlineInputBorder(
-        borderSide: BorderSide(color: Colors.blueAccent, width: 2),
-      ),
-      filled: true,
-      fillColor: Colors.white.withOpacity(0.05),
-    );
+    if (pickedFile != null) {
+      setState(() {
+        _selectedVideoFile = File(pickedFile.path);
+      });
+      print("Video Path: ${_selectedVideoFile!.path}");
+    }
   }
 
   Future<void> _createProject() async {
-    if (projectNameController.text.trim().isEmpty) {
+    if (projectNameController.text.trim().isEmpty || _selectedVideoFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Project ka naam daalo")),
+        const SnackBar(content: Text("Naam aur Video dono zaroori hain!")),
       );
       return;
     }
 
     setState(() => isLoading = true);
-
-    try {
-      final userId = SupabaseService.supabase.auth.currentUser!.id;
-
-      await SupabaseService.supabase.from('projects').insert({
-        'user_id': userId,
-        'project_name': projectNameController.text.trim(),
-        'description': descriptionController.text.trim(),
-        'aspect_ratio': selectedAspectRatio,
-        'frame_rate': selectedFrameRate,
-        'resolution': selectedResolution,
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Project successfully bana diya!"),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const ProjectListScreen()),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: ${e.toString()}")),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => isLoading = false);
-    }
+    // Baaki Supabase wala logic wahi rahega...
+    // Abhi hum sirf UI aur selection check kar rahe hain.
+    setState(() => isLoading = false);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F0F),
-      appBar: AppBar(
-        title: const Text("New Project", style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.black,
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
+      appBar: AppBar(title: const Text("New Project"), backgroundColor: Colors.black),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Project Name Field
+            // Project Name
             TextField(
               controller: projectNameController,
-              style: const TextStyle(color: Colors.white), // Typing text white
-              cursorColor: Colors.blueAccent,
-              decoration: _inputStyle("Project Name"),
-            ),
-            const SizedBox(height: 20),
-
-            // Description Field
-            TextField(
-              controller: descriptionController,
-              maxLines: 3,
-              style: const TextStyle(color: Colors.white), // Typing text white
-              cursorColor: Colors.blueAccent,
-              decoration: _inputStyle("Description (Optional)"),
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: "Project Name",
+                labelStyle: const TextStyle(color: Colors.white70),
+                enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+              ),
             ),
             const SizedBox(height: 30),
 
-            const Text("Aspect Ratio", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-            const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              dropdownColor: const Color(0xFF1A1A1A), // Dropdown menu background
-              value: selectedAspectRatio,
-              style: const TextStyle(color: Colors.white, fontSize: 16), // Selected text color
-              decoration: _inputStyle(""),
-              items: aspectRatios.map((ratio) {
-                return DropdownMenuItem(value: ratio, child: Text(ratio));
-              }).toList(),
-              onChanged: (value) => setState(() => selectedAspectRatio = value!),
-            ),
-            const SizedBox(height: 20),
+            // --- VIDEO PICKER UI ---
+            const Text("Step 1: Select Video", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 15),
 
-            const Text("Frame Rate", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-            const SizedBox(height: 10),
-            DropdownButtonFormField<int>(
-              dropdownColor: const Color(0xFF1A1A1A),
-              value: selectedFrameRate,
-              style: const TextStyle(color: Colors.white, fontSize: 16),
-              decoration: _inputStyle(""),
-              items: frameRates.map((rate) {
-                return DropdownMenuItem(value: rate, child: Text("$rate fps"));
-              }).toList(),
-              onChanged: (value) => setState(() => selectedFrameRate = value!),
+            GestureDetector(
+              onTap: _pickVideoFromGallery,
+              child: Container(
+                width: double.infinity,
+                height: 180,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(color: _selectedVideoFile == null ? Colors.blueAccent : Colors.green, width: 2),
+                ),
+                child: _selectedVideoFile == null
+                    ? const Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.add_a_photo, color: Colors.blueAccent, size: 50),
+                    SizedBox(height: 10),
+                    Text("Tap to select video from Gallery", style: TextStyle(color: Colors.white54)),
+                  ],
+                )
+                    : Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.check_circle, color: Colors.green, size: 60),
+                    const SizedBox(height: 10),
+                    Text("Video Selected!", style: const TextStyle(color: Colors.white)),
+                    Text(_selectedVideoFile!.path.split('/').last, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+                  ],
+                ),
+              ),
             ),
-            const SizedBox(height: 20),
 
-            const Text("Resolution", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-            const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              dropdownColor: const Color(0xFF1A1A1A),
-              value: selectedResolution,
-              style: const TextStyle(color: Colors.white, fontSize: 16),
-              decoration: _inputStyle(""),
-              items: resolutions.map((res) {
-                return DropdownMenuItem(value: res, child: Text(res));
-              }).toList(),
-              onChanged: (value) => setState(() => selectedResolution = value!),
-            ),
             const SizedBox(height: 40),
 
             // Create Button
@@ -167,15 +111,9 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
               width: double.infinity,
               height: 55,
               child: ElevatedButton(
-                onPressed: isLoading ? null : _createProject,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueAccent,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: isLoading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text("Create Project", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                onPressed: _createProject,
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
+                child: const Text("Create Project"),
               ),
             ),
           ],
